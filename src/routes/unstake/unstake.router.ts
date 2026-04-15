@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { handleRequestRedeem } from './request-redeem.call';
 import { handleResolveRedeemRequests } from './resolve-redeem-requests.call';
 import { handleClaimRedemptionRequests } from './claim-redemption-requests-call';
+import { loadRedeemStore, saveRedeemStore } from '../../store/redeem.store';
 
 export const unstakeRouter = Router();
 
@@ -13,6 +14,23 @@ unstakeRouter.post('/request-redeem', async (req, res) => {
   try {
     const lsEthAmount: string = req.body?.lsEthAmount ?? '0.02';
     const result = await handleRequestRedeem(lsEthAmount);
+
+    const store = loadRedeemStore();
+    store[result.txid ] = {
+      txid: result.txid,
+      lsEthAmount: result.lsEthAmountRedeemed,
+      addedAt: new Date().toISOString(),
+      claimed: false,
+      redeemRequestId: null,
+      events: {
+        '1-redeem_requested': {
+          ...result,
+          recordedAt: new Date().toISOString(),
+        },
+      },
+    };
+    saveRedeemStore(store);
+
     res.status(200).json(result);
   } catch (err: any) {
     console.error('Error handling requestRedeem:', err?.message);

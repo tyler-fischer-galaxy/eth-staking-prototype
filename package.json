@@ -5,6 +5,7 @@
   "addToken": "ts-node src/add-lseth-to-bitgo-dashboard.ts",
   "tunnel": "lt --port 3001 --subdomain eth-stake-webhook",
 "status": "ts-node src/scripts/status.script.ts",
+"redeem": "ts-node src/scripts/redeem.script.ts",
   "cron": "ts-node src/cron/cron.ts",
   "app": "ts-node src/app.ts",
 "start": "concurrently \"npm run app\" \"npm run cron\""

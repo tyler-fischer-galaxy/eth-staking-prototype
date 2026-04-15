@@ -1,0 +1,94 @@
+{
+  "legacy-39": {
+    "txid": "legacy-39",
+    "lsEthAmount": "0.02",
+    "addedAt": "2026-04-13T21:11:12.000Z",
+    "claimed": true,
+    "redeemRequestId": 39,
+    "events": {
+      "1-redeem_requested": {
+        "note": "manually added — predates store",
+        "recordedAt": "2026-04-15T00:00:00.000Z"
+      },
+      "3-redeem_claimed": {
+        "recordedAt": "2026-04-15T19:40:17.159Z"
+      }
+    }
+  },
+  "0x1509de411b87ee65b02832246725db16a17a55b4ec993507e90f96f03b627dbf": {
+    "txid": "0x1509de411b87ee65b02832246725db16a17a55b4ec993507e90f96f03b627dbf",
+    "lsEthAmount": "0.02",
+    "addedAt": "2026-04-15T19:10:25.521Z",
+    "claimed": false,
+    "redeemRequestId": 40,
+    "events": {
+      "1-redeem_requested": {
+        "txid": "0x1509de411b87ee65b02832246725db16a17a55b4ec993507e90f96f03b627dbf",
+        "explorerUrl": "https://hoodi.etherscan.io/tx/0x1509de411b87ee65b02832246725db16a17a55b4ec993507e90f96f03b627dbf",
+        "lsEthAmountRedeemed": "0.02",
+        "recipient": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+        "balanceBeforeEth": "8.763677835102706974",
+        "balanceAfterEth": "8.763677835102706974",
+        "walletAddress": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+        "recordedAt": "2026-04-15T19:10:25.523Z"
+      },
+      "2-redeem_confirmed": {
+        "redeemRequestId": 40,
+        "alluvialRedeem": {
+          "id": 40,
+          "withdrawal_event_id": -1,
+          "total_amount_lseth": "20000000000000000",
+          "claimed_amount_lseth": "0",
+          "claimed_amount_eth": "0",
+          "claimable_amount_lseth": "0",
+          "max_redeemable_amount_eth": "20319612194761944",
+          "owner": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+          "height": "1361331582902942942206",
+          "status_claim": "NOT_CLAIMED",
+          "status_satisfaction": "PENDING_SATISFACTION",
+          "requested_at": 2624591,
+          "timestamp": "2026-04-15 19:22:12 +0000 UTC"
+        },
+        "recordedAt": "2026-04-15T19:35:22.469Z"
+      }
+    }
+  },
+  "0x5c9e6a028352d848c1ca5ff6876f9f4d3c2735bcfc4c484bb9f01d741f95851d": {
+    "txid": "0x5c9e6a028352d848c1ca5ff6876f9f4d3c2735bcfc4c484bb9f01d741f95851d",
+    "lsEthAmount": "0.02",
+    "addedAt": "2026-04-15T19:21:58.993Z",
+    "claimed": false,
+    "redeemRequestId": 40,
+    "events": {
+      "1-redeem_requested": {
+        "txid": "0x5c9e6a028352d848c1ca5ff6876f9f4d3c2735bcfc4c484bb9f01d741f95851d",
+        "explorerUrl": "https://hoodi.etherscan.io/tx/0x5c9e6a028352d848c1ca5ff6876f9f4d3c2735bcfc4c484bb9f01d741f95851d",
+        "lsEthAmountRedeemed": "0.02",
+        "recipient": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+        "balanceBeforeEth": "8.743557073601971904",
+        "balanceAfterEth": "8.723462244601394684",
+        "walletAddress": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+        "recordedAt": "2026-04-15T19:21:58.993Z"
+      },
+      "2-redeem_confirmed": {
+        "redeemRequestId": 40,
+        "alluvialRedeem": {
+          "id": 40,
+          "withdrawal_event_id": -1,
+          "total_amount_lseth": "20000000000000000",
+          "claimed_amount_lseth": "0",
+          "claimed_amount_eth": "0",
+          "claimable_amount_lseth": "0",
+          "max_redeemable_amount_eth": "20319612194761944",
+          "owner": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+          "height": "1361331582902942942206",
+          "status_claim": "NOT_CLAIMED",
+          "status_satisfaction": "PENDING_SATISFACTION",
+          "requested_at": 2624591,
+          "timestamp": "2026-04-15 19:22:12 +0000 UTC"
+        },
+        "recordedAt": "2026-04-15T19:35:24.599Z"
+      }
+    }
+  }
+}

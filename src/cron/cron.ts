@@ -1,8 +1,9 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 import 'dotenv/config';
 import * as BitGoJS from 'bitgo';
-import * as fs from 'fs';
-import * as path from 'path';
 import { ethers } from 'ethers';
+import { loadStakeStore, saveStakeStore } from '../store/stake.store';
+import { loadRedeemStore, saveRedeemStore } from '../store/redeem.store';
 
 const {
   BITGO_ACCESS_TOKEN,
@@ -11,84 +12,10 @@ const {
   RIVER_PROXY_ADDRESS,
   BLOCK_EXPLORER,
   ALLUVIAL_API_URL,
-  ALLUVIAL_API_TOKEN,
+  ALLUVIAL_OAUTH,
 } = process.env;
 
 const bitgo = new BitGoJS.BitGo({ env: 'test', accessToken: BITGO_ACCESS_TOKEN });
-
-// ---------------------------------------------------------------------------
-// DB directory
-// ---------------------------------------------------------------------------
-const DB_DIR = path.resolve(__dirname, '../../db');
-if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-
-// ---------------------------------------------------------------------------
-// Stake JSON store
-// ---------------------------------------------------------------------------
-const STAKE_STORE_PATH = path.join(DB_DIR, 'stake-txids.json');
-
-interface StakeTx {
-  txid: string;
-  amountEth: string;
-  addedAt: string;
-  confirmed: boolean;
-  lsEthMinted?: string;
-  alluvialResponse?: any;
-}
-
-const loadStakeStore = (): StakeTx[] => {
-  if (!fs.existsSync(STAKE_STORE_PATH)) return [];
-  return JSON.parse(fs.readFileSync(STAKE_STORE_PATH, 'utf-8'));
-};
-
-const saveStakeStore = (txs: StakeTx[]) => {
-  fs.writeFileSync(STAKE_STORE_PATH, JSON.stringify(txs, null, 2));
-};
-
-export const addStakeTx = (txid: string, amountEth: string) => {
-  const store = loadStakeStore();
-  const already = store.find((t) => t.txid === txid);
-  if (already) {
-    console.log(`ℹ️  Stake tx ${txid} already in store`);
-    return;
-  }
-  store.push({ txid, amountEth, addedAt: new Date().toISOString(), confirmed: false });
-  saveStakeStore(store);
-  console.log(`💾 Saved stake txid ${txid} to store`);
-};
-
-// ---------------------------------------------------------------------------
-// Redeem JSON store
-// ---------------------------------------------------------------------------
-const REDEEM_STORE_PATH = path.join(DB_DIR, 'redeem-requests.json');
-
-interface RedeemRequest {
-  redeemRequestId: number;
-  lsEthAmount: string;
-  addedAt: string;
-  claimed: boolean;
-}
-
-const loadRedeemStore = (): RedeemRequest[] => {
-  if (!fs.existsSync(REDEEM_STORE_PATH)) return [];
-  return JSON.parse(fs.readFileSync(REDEEM_STORE_PATH, 'utf-8'));
-};
-
-const saveRedeemStore = (requests: RedeemRequest[]) => {
-  fs.writeFileSync(REDEEM_STORE_PATH, JSON.stringify(requests, null, 2));
-};
-
-export const addRedeemRequest = (redeemRequestId: number, lsEthAmount: string) => {
-  const store = loadRedeemStore();
-  const already = store.find((r) => r.redeemRequestId === redeemRequestId);
-  if (already) {
-    console.log(`ℹ️  Redeem request ${redeemRequestId} already in store`);
-    return;
-  }
-  store.push({ redeemRequestId, lsEthAmount, addedAt: new Date().toISOString(), claimed: false });
-  saveRedeemStore(store);
-  console.log(`💾 Saved redeemRequestId ${redeemRequestId} to store`);
-};
 
 // ---------------------------------------------------------------------------
 // Alluvial API — stake tx lookup
@@ -101,12 +28,11 @@ const getStakeTxFromAlluvial = async (
     `${ALLUVIAL_API_URL}/eth/v0/wallet/${walletAddress}/transactions`,
     {
       headers: {
-        Authorization: `Bearer ${ALLUVIAL_API_TOKEN}`,
+        Authorization: `Bearer ${ALLUVIAL_OAUTH}`,
         Accept: 'application/json',
       },
     }
   );
-
   if (!res.ok) return { lsEthMinted: undefined, alluvialResponse: null };
 
   const fullResponse = await res.json();
@@ -136,15 +62,15 @@ interface AlluvialRedeemResponse {
   claimable_amount_lseth: string;
   claimed_amount_eth: string;
   max_redeemable_amount_eth: string;
-  status_claim: 'NOT_CLAIMED' | 'CLAIMED';
-  status_satisfaction: 'PENDING_SATISFACTION' | 'SATISFIED';
+  status_claim: 'NOT_CLAIMED' | 'PARTIALLY_CLAIMED' | 'FULLY_CLAIMED';
+  status_satisfaction: 'PENDING_SATISFACTION' | 'PARTIALLY_SATISFIED' | 'FULLY_SATISFIED' | 'SATISFIED';
   requested_at: number;
 }
 
 const getRedeemStatus = async (redeemRequestId: number): Promise<AlluvialRedeemResponse> => {
   const res = await fetch(`${ALLUVIAL_API_URL}/eth/v0/redeems/${redeemRequestId}`, {
     headers: {
-      Authorization: `Bearer ${ALLUVIAL_API_TOKEN}`,
+      Authorization: `Bearer ${ALLUVIAL_OAUTH}`,
       Accept: 'application/json',
     },
   });
@@ -202,8 +128,8 @@ const poll = async () => {
   const timestamp = new Date().toISOString();
 
   // --- Stake poll ---
-  const stakeTxs = loadStakeStore();
-  const pendingStakes = stakeTxs.filter((t) => !t.confirmed);
+  const stakeStore = loadStakeStore();
+  const pendingStakes = Object.values(stakeStore).filter((t) => !t.confirmed);
 
   if (pendingStakes.length > 0) {
     console.log(`\n[${timestamp}] Checking ${pendingStakes.length} pending stake tx(s)...`);
@@ -216,7 +142,6 @@ const poll = async () => {
         continue;
       }
 
-      // tx confirmed — fetch Alluvial tx record for lsETH mint amount
       const wallet = await bitgo.coin('hteth').wallets().get({ id: BITGO_WALLET_ID });
       const walletAddress = wallet.receiveAddress() ?? '';
       const { lsEthMinted, alluvialResponse } = await getStakeTxFromAlluvial(walletAddress, stake.txid);
@@ -234,22 +159,117 @@ const poll = async () => {
         continue;
       }
 
-      // only mark confirmed once Alluvial has indexed it
-      const updated = stakeTxs.map((t) =>
-        t.txid === stake.txid
-          ? { ...t, confirmed: true, lsEthMinted, alluvialResponse }
-          : t
-      );
-      saveStakeStore(updated);
+      saveStakeStore({
+        ...stakeStore,
+        [stake.txid]: {
+          ...stake,
+          confirmed: true,
+          events: {
+            ...stake.events,
+            '2-alluvial_deposit_confirmed': {
+              ...alluvialResponse.matchedTx,
+              recordedAt: new Date().toISOString(),
+            },
+          },
+        },
+      });
       console.log(`💾 Stored full Alluvial response for tx ${stake.txid}`);
     }
   }
 
-  // --- Redeem poll ---
+  // --- Redeem tx confirmation poll (get redeemRequestId from Alluvial) ---
   const redeemStore = loadRedeemStore();
-  const pendingRedeems = redeemStore.filter((r) => !r.claimed);
+  const unconfirmedRedeems = Object.values(redeemStore).filter(
+    (r) => r.redeemRequestId === null && !r.claimed
+  );
 
-  if (pendingRedeems.length === 0 && pendingStakes.length === 0) {
+  if (unconfirmedRedeems.length > 0) {
+    console.log(`\n[${timestamp}] Checking ${unconfirmedRedeems.length} unconfirmed redeem tx(s)...`);
+
+    const wallet = await bitgo.coin('hteth').wallets().get({ id: BITGO_WALLET_ID });
+    const walletAddress = wallet.receiveAddress() ?? '';
+
+    const alluvialRedeemsRes = await fetch(
+      `${ALLUVIAL_API_URL}/eth/v0/redeems?owner=${walletAddress}`,
+      {
+        headers: {
+          Authorization: `Bearer ${ALLUVIAL_OAUTH}`,
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    const alluvialRedeems: any[] = alluvialRedeemsRes.ok
+      ? await alluvialRedeemsRes.json()
+      : [];
+
+    console.log(`  📋 Alluvial has ${alluvialRedeems.length} redeem request(s) for wallet`);
+
+    const trackedIds = new Set(
+      Object.values(redeemStore)
+        .map((r) => r.redeemRequestId)
+        .filter((id) => id !== null)
+    );
+
+    const untrackedAlluvialRedeems = alluvialRedeems.filter(
+      (r) => !trackedIds.has(r.id)
+    );
+
+    for (const redeem of unconfirmedRedeems) {
+      try {
+        const transfers = await wallet.transfers({ txHash: redeem.txid });
+        const transfer = transfers?.transfers?.[0];
+
+        if (transfer?.state !== 'confirmed') {
+          console.log(`  ⏳ Redeem tx not confirmed yet: ${redeem.txid}`);
+          continue;
+        }
+
+        console.log(`  ✅ Redeem tx confirmed: ${redeem.txid}`);
+
+        const matched = untrackedAlluvialRedeems.find(
+          (r) => ethers.parseEther(redeem.lsEthAmount).toString() === r.total_amount_lseth
+        );
+
+        if (!matched) {
+          console.log(`  ℹ️  No matching Alluvial redeem found for ${redeem.txid} — will retry next tick`);
+          continue;
+        }
+
+        const redeemRequestId = matched.id;
+        console.log(`  🎯 Matched redeemRequestId: ${redeemRequestId}`);
+
+        trackedIds.add(redeemRequestId);
+
+        const updatedStore = loadRedeemStore();
+        updatedStore[redeem.txid] = {
+          ...redeem,
+          redeemRequestId,
+          events: {
+            ...redeem.events,
+            '2-redeem_confirmed': {
+              redeemRequestId,
+              alluvialRedeem: matched,
+              recordedAt: new Date().toISOString(),
+            },
+          },
+        };
+        saveRedeemStore(updatedStore);
+        console.log(`💾 Saved redeemRequestId ${redeemRequestId} for tx ${redeem.txid}`);
+
+      } catch (err: any) {
+        console.error(`  ❌ Failed to check redeem tx ${redeem.txid}:`, err?.message);
+      }
+    }
+  }
+
+  // --- Redeem satisfaction poll ---
+  const freshRedeemStore = loadRedeemStore();
+  const pendingRedeems = Object.values(freshRedeemStore).filter(
+    (r) => !r.claimed && r.redeemRequestId !== null
+  );
+
+  if (pendingRedeems.length === 0 && pendingStakes.length === 0 && unconfirmedRedeems.length === 0) {
     console.log(`[${timestamp}] No pending stake or redeem requests`);
     return;
   }
@@ -259,10 +279,11 @@ const poll = async () => {
 
     const readyIds: number[] = [];
     const readyEventIds: number[] = [];
+    const readyTxids: string[] = [];
 
     for (const request of pendingRedeems) {
       try {
-        const status = await getRedeemStatus(request.redeemRequestId);
+        const status = await getRedeemStatus(request.redeemRequestId!);
 
         console.log(`  Request ${request.redeemRequestId}:`);
         console.log(`    satisfaction:        ${status.status_satisfaction}`);
@@ -270,13 +291,16 @@ const poll = async () => {
         console.log(`    withdrawal_event_id: ${status.withdrawal_event_id}`);
 
         if (
-          status.status_satisfaction === 'SATISFIED' &&
+          (status.status_satisfaction === 'SATISFIED' ||
+            status.status_satisfaction === 'FULLY_SATISFIED' ||
+            status.status_satisfaction === 'PARTIALLY_SATISFIED') &&
           status.status_claim === 'NOT_CLAIMED' &&
           status.withdrawal_event_id >= 0
         ) {
           console.log(`  ✅ Request ${request.redeemRequestId} ready to claim!`);
-          readyIds.push(request.redeemRequestId);
+          readyIds.push(request.redeemRequestId!);
           readyEventIds.push(status.withdrawal_event_id);
+          readyTxids.push(request.txid);
         } else {
           console.log(`  ⏳ Request ${request.redeemRequestId} not ready yet`);
         }
@@ -288,10 +312,20 @@ const poll = async () => {
     if (readyIds.length > 0) {
       try {
         await claimRequests(readyIds, readyEventIds);
-        const updated = redeemStore.map((r) =>
-          readyIds.includes(r.redeemRequestId) ? { ...r, claimed: true } : r
-        );
-        saveRedeemStore(updated);
+        const updatedRedeems = loadRedeemStore();
+        for (const txid of readyTxids) {
+          updatedRedeems[txid] = {
+            ...updatedRedeems[txid],
+            claimed: true,
+            events: {
+              ...updatedRedeems[txid].events,
+              '3-redeem_claimed': {
+                recordedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }
+        saveRedeemStore(updatedRedeems);
         console.log(`💾 Marked ${readyIds.length} request(s) as claimed in store`);
       } catch (err: any) {
         console.error('❌ Failed to claim:', err?.message);

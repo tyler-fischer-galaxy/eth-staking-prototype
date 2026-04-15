@@ -1,37 +1,33 @@
-[
-  {
-    "txid": "0x7d1a78427efb2fbbc6a9324cc1de59ace4ebc6c3db59dabbfd25283f26810968",
+{
+  "0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1": {
+    "txid": "0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1",
     "amountEth": "0.02",
-    "addedAt": "2026-04-15T01:22:26.345Z",
+    "addedAt": "2026-04-15T19:21:24.656Z",
     "confirmed": true,
-    "rawLogs": [
-      {
-        "address": "0x198a2a959a8fd133faad73658f645ea57caf129e",
-        "wallet": "69d92282aa63bc039e2969ebb93e3f05",
-        "value": -20000000000000000,
-        "valueString": "-20000000000000000",
-        "isPayGo": false
+    "walletAddress": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+    "explorerUrl": "https://hoodi.etherscan.io/tx/0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1",
+    "balanceBeforeEth": "8.743557073601971904",
+    "balanceAfterEth": "8.743557073601971904",
+    "events": {
+      "1-stake_initiated": {
+        "txid": "0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1",
+        "explorerUrl": "https://hoodi.etherscan.io/tx/0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1",
+        "amountStakedEth": "0.02",
+        "balanceBeforeEth": "8.743557073601971904",
+        "balanceAfterEth": "8.743557073601971904",
+        "walletAddress": "0x198a2a959a8fd133faad73658f645ea57caf129e",
+        "recordedAt": "2026-04-15T19:21:24.656Z"
       },
-      {
-        "address": "0x8c1bed5b9a0928467c9b1341da1d7bd5e10b6549",
-        "value": 20000000000000000,
-        "valueString": "20000000000000000",
-        "isPayGo": false
-      },
-      {
-        "address": "0x198a2a959a8fd133faad73658f645ea57caf129e",
-        "wallet": "69d92282aa63bc039e2969ebb93e3f05",
-        "value": -24334000148120,
-        "valueString": "-24334000148120",
-        "isPayGo": false
+      "2-alluvial_deposit_confirmed": {
+        "date": "2026-04-15 19:21:36 +0000 UTC",
+        "transaction_type": "Deposit",
+        "amount_eth": "0.02",
+        "conversion_rate": "1.015980609738097201",
+        "amount_lseth": "0.0196854150643246",
+        "transaction_hash": "0xf0f6da4703cabfd532bd65fb13a9653ff3eb92d2b5ddb3dfc1b160917cef1db1",
+        "finalized": false,
+        "recordedAt": "2026-04-15T19:25:50.457Z"
       }
-    ],
-    "parsedEvents": {}
-  },
-  {
-    "txid": "0xae3a67579f9886e5e0b4f24dd7c5bd588192345c6ee91d045b0a0baa212b10df",
-    "amountEth": "0.02",
-    "addedAt": "2026-04-15T01:27:36.032Z",
-    "confirmed": false
+    }
   }
-]
+}
