@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { ethers } from 'ethers';
 import { registerWebhook } from './shared/register-webhook.util';
 
-const { BLOCK_EXPLORER, WEBHOOK_LISTENER_URL } = process.env;
+const { BLOCK_EXPLORER, WEBHOOK_LISTENER_URL, RIVER_PROXY_ADDRESS, REDEEM_MANAGER_ADDRESS } = process.env;
 
 const riverABI = [
-  'function deposit() payable',
-  'event Deposit(address indexed depositor, uint256 amount)',
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+  'event RequestedRedeem(address indexed recipient, uint256 height, uint256 amount, uint256 maxRedeemableEth, uint32 id)',
 ];
 const iface = new ethers.Interface(riverABI);
 
@@ -20,25 +20,57 @@ export const registerTransferWebhook = () =>
     numConfirmations: 1,
   });
 
-const parseDepositEvent = (logs: any[]): { depositor: string; amount: string } | null => {
-  const depositTopic = ethers.id('Deposit(address,uint256)');
+// from == address(0) means it's a mint
+const parseLsEthMintEvent = (logs: any[]): { recipient: string; amount: string } | null => {
+  const transferTopic = ethers.id('Transfer(address,address,uint256)');
+  const ZERO_ADDRESS = ethers.ZeroAddress;
 
   for (const log of logs ?? []) {
-    if (log.topics?.[0] === depositTopic) {
+    if (
+      log.topics?.[0] === transferTopic &&
+      log.address?.toLowerCase() === RIVER_PROXY_ADDRESS?.toLowerCase()
+    ) {
+      try {
+        const decoded = iface.parseLog(log);
+        if (decoded && decoded.args.from === ZERO_ADDRESS) {
+          return {
+            recipient: decoded.args.to,
+            amount: ethers.formatEther(decoded.args.value),
+          };
+        }
+      } catch {
+        // Not a Transfer event — skip
+      }
+    }
+  }
+  return null;
+};
+
+const parseRequestedRedeemEvent = (
+  logs: any[]
+): { recipient: string; amount: string; maxRedeemableEth: string; redeemRequestId: number } | null => {
+  const redeemTopic = ethers.id('RequestedRedeem(address,uint256,uint256,uint256,uint32)');
+
+  for (const log of logs ?? []) {
+    if (
+      log.topics?.[0] === redeemTopic &&
+      log.address?.toLowerCase() === REDEEM_MANAGER_ADDRESS?.toLowerCase()
+    ) {
       try {
         const decoded = iface.parseLog(log);
         if (decoded) {
           return {
-            depositor: decoded.args.depositor,
+            recipient: decoded.args.recipient,
             amount: ethers.formatEther(decoded.args.amount),
+            maxRedeemableEth: ethers.formatEther(decoded.args.maxRedeemableEth),
+            redeemRequestId: Number(decoded.args.id),
           };
         }
       } catch {
-        // Not a River event — skip
+        // Not a RequestedRedeem event — skip
       }
     }
   }
-
   return null;
 };
 
@@ -55,7 +87,6 @@ const enrichTransfer = async (walletId: string, transferId: string) => {
   }
 };
 
-
 const handleTransferEvent = async (payload: any) => {
   const { type, transfer, wallet } = payload;
 
@@ -64,45 +95,45 @@ const handleTransferEvent = async (payload: any) => {
   console.log('State:', transfer?.state);
   console.log('Tx hash:', transfer?.txid);
   console.log('Direction:', transfer?.direction);
-  console.log('Value (wei):', transfer?.value);
-  console.log('Value (ETH):', transfer?.value ? ethers.formatEther(transfer.value) : 'n/a');
 
   if (transfer?.txid) {
     console.log('Explorer:', `${BLOCK_EXPLORER}/tx/${transfer.txid}`);
   }
 
   const enriched = await enrichTransfer(wallet, transfer?.id);
+  if (!enriched) return;
 
-  if (enriched) {
-    console.log('Confirmations:', enriched.confirmations);
-    console.log('Block height:', enriched.height);
+  console.log('Confirmations:', enriched.confirmations);
+  console.log('Block height:', enriched.height);
 
-    const depositEvent = parseDepositEvent(enriched.entries ?? []);
-    if (depositEvent) {
-      console.log('\n📋 River Deposit event detected:');
-      console.log('  Depositor:', depositEvent.depositor);
-      console.log('  Amount (ETH):', depositEvent.amount);
-    }
+  const logs = enriched.entries ?? [];
 
-    if (transfer?.direction === 'receive' && enriched.confirmations >= 1) {
-      console.log('\n✅ Inbound transfer confirmed — likely LsETH mint');
-      console.log('  From:', enriched.entries?.[0]?.address);
-      console.log('  Amount (wei):', enriched.value);
-      // TODO: update staking record, publish Kafka event, notify be-staking
-    }
+  // --- Stake: lsETH mint ---
+  const mintEvent = parseLsEthMintEvent(logs);
+  if (mintEvent) {
+    console.log('\n✅ lsETH mint detected:');
+    console.log('  Recipient:    ', mintEvent.recipient);
+    console.log('  lsETH minted:', mintEvent.amount);
+    // TODO: update staking record with minted lsETH amount
+    // TODO: publish Kafka event for be-staking
+  }
 
-    if (transfer?.direction === 'send' && enriched.confirmations >= 1) {
-      console.log('\n✅ Outbound deposit confirmed on-chain');
-      // TODO: update CryptoTransfers record status to CONFIRMED
-      // TODO: notify be-staking to begin position processing
-    }
+  // --- Unstake: redeem request submitted ---
+  const redeemEvent = parseRequestedRedeemEvent(logs);
+  if (redeemEvent) {
+    console.log('\n✅ Redeem request detected:');
+    console.log('  Recipient:         ', redeemEvent.recipient);
+    console.log('  LsETH amount:      ', redeemEvent.amount);
+    console.log('  Max redeemable ETH:', redeemEvent.maxRedeemableEth);
+    console.log('  Redeem Request ID: ', redeemEvent.redeemRequestId);
+    // TODO: persist redeemRequestId to DB
+    // TODO: trigger scheduled job to poll resolveRedeemRequests
   }
 };
 
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
-
 export const transferWebhookRouter = Router();
 
 transferWebhookRouter.post('/', async (req, res) => {

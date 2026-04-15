@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { handleRequestRedeem } from './request-redeem.call';
 import { handleResolveRedeemRequests } from './resolve-redeem-requests.call';
-import { handleClaimRedemptionRequests } from './claim-redemption-requests.call';
+import { handleClaimRedemptionRequests } from './claim-redemption-requests-call';
 
 export const unstakeRouter = Router();
 

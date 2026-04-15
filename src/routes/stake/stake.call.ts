@@ -1,5 +1,6 @@
 import * as BitGoJS from 'bitgo';
 import { ethers } from 'ethers';
+import { addStakeTx } from '../../cron/cron';
 
 const {
   BITGO_ACCESS_TOKEN,
@@ -35,7 +36,6 @@ export const handleStake = async (amountEth: string): Promise<StakeResult> => {
 
   const balance = BigInt(balanceStr);
   const gasBuffer = ethers.parseEther('0.01');
-
   if (balance <= gasBuffer) {
     throw new Error('Insufficient balance to stake after gas buffer');
   }
@@ -52,14 +52,15 @@ export const handleStake = async (amountEth: string): Promise<StakeResult> => {
     data: data,
     walletPassphrase: BITGO_WALLET_PASSPHRASE,
     type: 'transfer',
-    metadata: {
-      purpose: 'staking',
-    },
+    metadata: { purpose: 'staking' },
   });
 
   console.log('\n✅ Staking successful!');
   console.log('Tx hash:', tx.txid);
   console.log('Tx explorer:', `${BLOCK_EXPLORER}/tx/${tx.txid}`);
+
+  // save txid so cron can poll for lsETH mint event
+  addStakeTx(tx.txid, amountEth);
 
   const updatedWallet = await bitgo.coin('hteth').wallets().get({ id: BITGO_WALLET_ID });
   const newBalanceStr = await updatedWallet.balanceString();
@@ -71,6 +72,6 @@ export const handleStake = async (amountEth: string): Promise<StakeResult> => {
     amountStakedEth: amountEth,
     balanceBeforeEth: ethers.formatEther(balanceStr),
     balanceAfterEth: ethers.formatEther(newBalanceStr),
-    walletAddress: walletAddress ?? ''  ,
+    walletAddress: walletAddress ?? '',
   };
 };

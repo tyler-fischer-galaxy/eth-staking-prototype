@@ -1,11 +1,13 @@
 {
 "scripts": {
-  "stake": "ts-node src/contract-calls/stake-call.ts",
+  "stake": "ts-node src/scripts/stake.script.ts",
   "unstake-call": "ts-node src/contract-calls/unstake-call.ts",
   "addToken": "ts-node src/add-lseth-to-bitgo-dashboard.ts",
-  "webhook": "ts-node src/app.ts",
-  "tunnel": "lt --port 3001",
-  "start": "concurrently \"npm run webhook\" \"npm run tunnel\""
+  "tunnel": "lt --port 3001 --subdomain eth-stake-webhook",
+"status": "ts-node src/scripts/status.script.ts",
+  "cron": "ts-node src/cron/cron.ts",
+  "app": "ts-node src/app.ts",
+"start": "concurrently \"npm run app\" \"npm run cron\""
 },
   "dependencies": {
     "@types/node": "^25.6.0",
